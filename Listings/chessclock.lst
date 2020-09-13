@@ -1,0 +1,806 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ;
+    2 00000000         ; CS1022 Introduction to Computing II 2018/2019
+    3 00000000         ; Chess Clock
+    4 00000000         ;
+    5 00000000         
+    6 00000000 E0004000 
+                       T0IR    EQU              0xE0004000
+    7 00000000 E0004004 
+                       T0TCR   EQU              0xE0004004
+    8 00000000 E0004008 
+                       T0TC    EQU              0xE0004008
+    9 00000000 E0004018 
+                       T0MR0   EQU              0xE0004018
+   10 00000000 E0004014 
+                       T0MCR   EQU              0xE0004014
+   11 00000000         
+   12 00000000 E002C010 
+                       PINSEL4 EQU              0xE002C010
+   13 00000000         
+   14 00000000 3FFFC041 
+                       FIO2DIR1
+                               EQU              0x3FFFC041
+   15 00000000 3FFFC055 
+                       FIO2PIN1
+                               EQU              0x3FFFC055
+   16 00000000         
+   17 00000000 E01FC140 
+                       EXTINT  EQU              0xE01FC140
+   18 00000000 E01FC148 
+                       EXTMODE EQU              0xE01FC148
+   19 00000000 E01FC14C 
+                       EXTPOLAR
+                               EQU              0xE01FC14C
+   20 00000000         
+   21 00000000 FFFFF00C 
+                       VICIntSelect
+                               EQU              0xFFFFF00C
+   22 00000000 FFFFF010 
+                       VICIntEnable
+                               EQU              0xFFFFF010
+   23 00000000 FFFFF100 
+                       VICVectAddr0
+                               EQU              0xFFFFF100
+   24 00000000 FFFFF200 
+                       VICVectPri0
+                               EQU              0xFFFFF200
+   25 00000000 FFFFFF00 
+                       VICVectAddr
+                               EQU              0xFFFFFF00
+   26 00000000         
+   27 00000000 00000004 
+                       VICVectT0
+                               EQU              4
+   28 00000000 0000000E 
+                       VICVectEINT0
+                               EQU              14
+   29 00000000         
+   30 00000000 00000080 
+                       Irq_Stack_Size
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+                               EQU              0x80
+   31 00000000         
+   32 00000000 00000010 
+                       Mode_USR
+                               EQU              0x10
+   33 00000000 00000012 
+                       Mode_IRQ
+                               EQU              0x12
+   34 00000000 00000080 
+                       I_Bit   EQU              0x80        ; when I bit is set
+                                                            , IRQ is disabled
+   35 00000000 00000040 
+                       F_Bit   EQU              0x40        ; when F bit is set
+                                                            , FIQ is disabled
+   36 00000000         
+   37 00000000         
+   38 00000000         
+   39 00000000                 AREA             RESET, CODE, READONLY
+   40 00000000                 ENTRY
+   41 00000000         
+   42 00000000         ; Exception Vectors
+   43 00000000         
+   44 00000000 EA000006        B                Reset_Handler ; 0x00000000
+   45 00000004 EA000039        B                Undef_Handler ; 0x00000004
+   46 00000008 EA000039        B                SWI_Handler ; 0x00000008
+   47 0000000C EA000039        B                PAbt_Handler ; 0x0000000C
+   48 00000010 EA000039        B                DAbt_Handler ; 0x00000010
+   49 00000014 E1A00000        NOP                          ; 0x00000014
+   50 00000018 EA000038        B                IRQ_Handler ; 0x00000018
+   51 0000001C EA00003D        B                FIQ_Handler ; 0x0000001C
+   52 00000020         
+   53 00000020         ;
+   54 00000020         ; Reset Exception Handler
+   55 00000020         ;
+   56 00000020         Reset_Handler
+   57 00000020         
+   58 00000020         ;
+   59 00000020         ; Initialize Stack Pointers (SP) for each mode we are us
+                       ing
+   60 00000020         ;
+   61 00000020         
+   62 00000020         ; Stack Top
+   63 00000020 E59F0188        LDR              R0, =0x40010000
+   64 00000024         
+   65 00000024         ; Enter irq mode and set initial SP
+   66 00000024 E321F0D2        MSR              CPSR_c, #Mode_IRQ:OR:I_Bit:OR:F
+_Bit
+   67 00000028 E1A0D000        MOV              SP, R0
+   68 0000002C E2400080        SUB              R0, R0, #Irq_Stack_Size
+   69 00000030         
+   70 00000030         ; Enter user mode and set initial SP
+   71 00000030 E321F010        MSR              CPSR_c, #Mode_USR
+   72 00000034 E1A0D000        MOV              SP, R0
+   73 00000038         
+   74 00000038         ;
+   75 00000038         ; your initialisation goes here
+   76 00000038         ;
+   77 00000038 E59F4174        LDR              R4, =count
+   78 0000003C E3A05000        LDR              R5, =0
+
+
+
+ARM Macro Assembler    Page 3 
+
+
+   79 00000040 E5845000        STR              R5, [R4]    ; count = 0
+   80 00000044 E59F416C        LDR              R4, =time1
+   81 00000048 E3A05000        LDR              R5, =0
+   82 0000004C E5845000        STR              R5, [R4]    ; time1 = 0
+   83 00000050 E59F4164        LDR              R4, =time2
+   84 00000054 E3A05000        LDR              R5, =0
+   85 00000058 E5845000        STR              R5, [R4]    ; time2 = 0
+   86 0000005C         
+   87 0000005C         ; Enable P2.10 for EINT0
+   88 0000005C E59F415C        LDR              R4, =PINSEL4
+   89 00000060 E5945000        LDR              R5, [R4]    ; read current valu
+                                                            e
+   90 00000064 E3C55603        BIC              R5, #(0x03 << 20) 
+                                                            ; clear bits 21:20
+   91 00000068 E3855601        ORR              R5, #(0x01 << 20) ; set bits 21
+                                                            :20 to 01
+   92 0000006C E5845000        STR              R5, [R4]    ; write new value
+   93 00000070         
+   94 00000070         ; Set edge-sensitive mode for EINT0
+   95 00000070 E59F414C        LDR              R4, =EXTMODE
+   96 00000074 E5945000        LDR              R5, [R4]    ; read
+   97 00000078 E3855001        ORR              R5, #1      ; modify
+   98 0000007C E5C45000        STRB             R5, [R4]    ; write
+   99 00000080         
+  100 00000080         ; Set rising-edge mode for EINT0
+  101 00000080 E59F4140        LDR              R4, =EXTPOLAR
+  102 00000084 E5945000        LDR              R5, [R4]    ; read
+  103 00000088 E3855001        ORR              R5, #1      ; modify
+  104 0000008C E5C45000        STRB             R5, [R4]    ; write
+  105 00000090         
+  106 00000090         ; Reset EINT0
+  107 00000090 E59F4134        LDR              R4, =EXTINT
+  108 00000094 E3A05001        MOV              R5, #1
+  109 00000098 E5C45000        STRB             R5, [R4]
+  110 0000009C         
+  111 0000009C         ; Reset TIMER0 using Timer Control Register
+  112 0000009C         ;   Set bit 0 of TCR to 0 to stop TIMER
+  113 0000009C         ;   Set bit 1 of TCR to 1 to reset TIMER
+  114 0000009C E59F512C        LDR              R5, =T0TCR
+  115 000000A0 E3A06002        LDR              R6, =0x2
+  116 000000A4 E5C56000        STRB             R6, [R5]
+  117 000000A8         
+  118 000000A8         ;Reset TC
+  119 000000A8         ;due to a bug in the peripherals i had to manually reset
+                        TC
+  120 000000A8 E59F5124        LDR              R5, =T0TC
+  121 000000AC E3A06000        LDR              R6, =0
+  122 000000B0 E5856000        STR              R6, [R5]
+  123 000000B4         
+  124 000000B4         ;
+  125 000000B4         ; Configure VIC for EINT0 interrupts
+  126 000000B4         ;
+  127 000000B4         
+  128 000000B4         ; Useful VIC vector numbers and masks for following code
+                       
+  129 000000B4 E3A0400E        LDR              R4, =VICVectEINT0 ; vector 14
+  130 000000B8 E3A05901        LDR              R5, =(1 << VICVectEINT0) ; bit 
+                                                            mask for vector 14
+  131 000000BC         
+
+
+
+ARM Macro Assembler    Page 4 
+
+
+  132 000000BC         ; VICIntSelect - Clear bit 4 of VICIntSelect register to
+                        cause
+  133 000000BC         ; channel 14 (EINT0) to raise IRQs (not FIQs)
+  134 000000BC E59F6114        LDR              R6, =VICIntSelect ; addr = VICV
+                                                            ectSelect;
+  135 000000C0 E5967000        LDR              R7, [R6]    ; tmp = Memory.Word
+                                                            (addr);
+  136 000000C4 E1C77005        BIC              R7, R7, R5  ; Clear bit for Vec
+                                                            tor 14
+  137 000000C8 E5867000        STR              R7, [R6]    ; Memory.Word(addr)
+                                                             = tmp;
+  138 000000CC         
+  139 000000CC         ; Set Priority for VIC channel 14 (EINT0) to lowest (15)
+                        by setting
+  140 000000CC         ; VICVectPri4 to 15. Note: VICVectPri4 is the element at
+                        index 14 of an
+  141 000000CC         ; array of 4-byte values that starts at VICVectPri0.
+  142 000000CC         ; i.e. VICVectPri4=VICVectPri0+(4*4)
+  143 000000CC E59F6108        LDR              R6, =VICVectPri0 ; addr = VICVe
+                                                            ctPri0;
+  144 000000D0 E3A0700F        MOV              R7, #15     ; pri = 15;
+  145 000000D4 E7867104        STR              R7, [R6, R4, LSL #2] ; Memory.W
+                                                            ord(addr + vector *
+                                                             4) = pri;
+  146 000000D8         
+  147 000000D8         ; Set Handler routine address for VIC channel 14 (EINT0)
+                        to address of
+  148 000000D8         ; our handler routine (ButtonHandler). Note: VICVectAddr
+                       14 is the element
+  149 000000D8         ; at index 14 of an array of 4-byte values that starts a
+                       t VICVectAddr0.
+  150 000000D8         ; i.e. VICVectAddr14=VICVectAddr0+(4*4)
+  151 000000D8 E59F6100        LDR              R6, =VICVectAddr0 ; addr = VICV
+                                                            ectAddr0;
+  152 000000DC E59F7100        LDR              R7, =Button_Handler ; handler =
+                                                             address of ButtonH
+                                                            andler;
+  153 000000E0 E7867104        STR              R7, [R6, R4, LSL #2] ; Memory.W
+                                                            ord(addr + vector *
+                                                             4) = handler
+  154 000000E4         
+  155 000000E4         ; Enable VIC channel 14 (EINT0) by writing a 1 to bit 4 
+                       of VICIntEnable
+  156 000000E4 E59F60FC        LDR              R6, =VICIntEnable ; addr = VICI
+                                                            ntEnable;
+  157 000000E8 E5865000        STR              R5, [R6]    ; enable interrupts
+                                                             for vector 14
+  158 000000EC EAFFFFFE 
+                       stop    B                stop
+  159 000000F0         
+  160 000000F0         
+  161 000000F0         ;
+  162 000000F0         ; TOP LEVEL EXCEPTION HANDLERS
+  163 000000F0         ;
+  164 000000F0         
+  165 000000F0         ;
+  166 000000F0         ; Software Interrupt Exception Handler
+  167 000000F0         ;
+  168 000000F0         Undef_Handler
+
+
+
+ARM Macro Assembler    Page 5 
+
+
+  169 000000F0 EAFFFFFE        B                Undef_Handler
+  170 000000F4         
+  171 000000F4         ;
+  172 000000F4         ; Software Interrupt Exception Handler
+  173 000000F4         ;
+  174 000000F4         SWI_Handler
+  175 000000F4 EAFFFFFE        B                SWI_Handler
+  176 000000F8         
+  177 000000F8         ;
+  178 000000F8         ; Prefetch Abort Exception Handler
+  179 000000F8         ;
+  180 000000F8         PAbt_Handler
+  181 000000F8 EAFFFFFE        B                PAbt_Handler
+  182 000000FC         
+  183 000000FC         ;
+  184 000000FC         ; Data Abort Exception Handler
+  185 000000FC         ;
+  186 000000FC         DAbt_Handler
+  187 000000FC EAFFFFFE        B                DAbt_Handler
+  188 00000100         
+  189 00000100         ;
+  190 00000100         ; Interrupt ReQuest (IRQ) Exception Handler (top level -
+                        all devices)
+  191 00000100         ;
+  192 00000100         IRQ_Handler
+  193 00000100 E24EE004        SUB              lr, lr, #4  ; for IRQs, LR is a
+                                                            lways 4 more than t
+                                                            he
+  194 00000104         ; real return address
+  195 00000104 E92D400F        STMFD            sp!, {r0-r3,lr} 
+                                                            ; save r0-r3 and lr
+                                                            
+  196 00000108         
+  197 00000108 E3E000FF        LDR              r0, =VICVectAddr ; address of V
+                                                            IC Vector Address m
+                                                            emory-
+  198 0000010C         ; mapped register
+  199 0000010C         
+  200 0000010C E1A0E00F        MOV              lr, pc      ; can’t use BL he
+                                                            re because we are b
+                                                            ranching
+  201 00000110 E590F000        LDR              pc, [r0]    ; to a different su
+                                                            broutine dependant 
+                                                            on device
+  202 00000114         ; raising the IRQ - this is a manual BL !!
+  203 00000114         
+  204 00000114 E8FD800F        LDMFD            sp!, {r0-r3, pc}^ ; restore r0-
+                                                            r3, lr and CPSR
+  205 00000118         
+  206 00000118         ;
+  207 00000118         ; Fast Interrupt reQuest Exception Handler
+  208 00000118         ;
+  209 00000118         FIQ_Handler
+  210 00000118 EAFFFFFE        B                FIQ_Handler
+  211 0000011C         
+  212 0000011C         
+  213 0000011C         ;
+  214 0000011C         ; write your interrupt handlers here
+  215 0000011C         ;
+
+
+
+ARM Macro Assembler    Page 6 
+
+
+  216 0000011C         Button_Handler
+  217 0000011C         
+  218 0000011C E92D4030        STMFD            sp!, {r4-r5, lr}
+  219 00000120         
+  220 00000120         ; Reset EINT0 interrupt by writing 1 to EXTINT register
+  221 00000120 E59F40A4        LDR              R4, =EXTINT
+  222 00000124 E3A05001        MOV              R5, #1
+  223 00000128 E5C45000        STRB             R5, [R4]
+  224 0000012C         
+  225 0000012C         ;increment count
+  226 0000012C E59F5080        LDR              R5, =count
+  227 00000130 E5956000        LDR              R6, [R5]
+  228 00000134 E2866001        ADD              R6, #1
+  229 00000138 E5856000        STR              R6, [R5]
+  230 0000013C         
+  231 0000013C E3560001        CMP              R6, #1
+  232 00000140 1A000008        BNE              t2
+  233 00000144 E59F5088        LDR              R5, =T0TC
+  234 00000148 E5956000        LDR              R6, [R5]
+  235 0000014C E59F5068        LDR              R5, =time2
+  236 00000150 E5856000        STR              R6, [R5]
+  237 00000154 E59F505C        LDR              R5, =time1
+  238 00000158 E5956000        LDR              R6, [R5]
+  239 0000015C E59F5070        LDR              R5, =T0TC
+  240 00000160 E5856000        STR              R6, [R5]
+  241 00000164 EA00000A        B                skip
+  242 00000168         t2
+  243 00000168 E59F5064        LDR              R5, =T0TC
+  244 0000016C E5956000        LDR              R6, [R5]
+  245 00000170 E59F5040        LDR              R5, =time1
+  246 00000174 E5856000        STR              R6, [R5]
+  247 00000178 E59F503C        LDR              R5, =time2
+  248 0000017C E5956000        LDR              R6, [R5]
+  249 00000180 E59F504C        LDR              R5, =T0TC
+  250 00000184 E5856000        STR              R6, [R5]
+  251 00000188 E59F5024        LDR              R5, =count
+  252 0000018C E3A06000        LDR              R6, =0
+  253 00000190 E5856000        STR              R6, [R5]
+  254 00000194         skip
+  255 00000194         
+  256 00000194         ; Start TIMER0 using the Timer Control Register
+  257 00000194         ;   Set bit 0 of TCR to enable the timer
+  258 00000194 E59F4034        LDR              R4, =T0TCR
+  259 00000198 E3A05001        LDR              R5, =0x01
+  260 0000019C E5C45000        STRB             R5, [R4]
+  261 000001A0         
+  262 000001A0         ;
+  263 000001A0         ; Clear source of interrupt
+  264 000001A0         ;
+  265 000001A0 E3E040FF        LDR              R4, =VICVectAddr ; addr = VICVe
+                                                            ctAddr
+  266 000001A4 E3A05000        MOV              R5, #0      ; tmp = 0;
+  267 000001A8 E5845000        STR              R5, [R4]    ; Memory.Word(addr)
+                                                             = tmp;
+  268 000001AC         
+  269 000001AC E8BD8030        LDMFD            sp!, {r4-r5, pc}
+  270 000001B0         
+  271 000001B0 40010000 
+              00000000 
+
+
+
+ARM Macro Assembler    Page 7 
+
+
+              00000000 
+              00000000 
+              E002C010 
+              E01FC148 
+              E01FC14C 
+              E01FC140 
+              E0004004 
+              E0004008 
+              FFFFF00C 
+              FFFFF200 
+              FFFFF100 
+              00000000 
+              FFFFF010 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              00000000 
+              00000000         AREA             TestData, DATA, READWRITE
+  272 00000000         
+  273 00000000 00 00 00 
+              00       count   SPACE            4
+  274 00000004 00 00 00 
+              00       time1   SPACE            4
+  275 00000008 00 00 00 
+              00       time2   SPACE            4
+  276 0000000C         
+  277 0000000C                 END
+Command Line: --debug --xref --diag_suppress=9931 --apcs=interwork --depend=.\o
+bjects\chessclock.d -o.\objects\chessclock.o -IC:\Keil_v5\ARM\RV31\INC -IC:\Kei
+l_v5\ARM\CMSIS\Include -IC:\Keil_v5\ARM\INC\Philips --predefine="__EVAL SETA 1"
+ --predefine="__UVISION_VERSION SETA 528" --list=.\listings\chessclock.lst Ches
+sClock.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+Button_Handler 0000011C
+
+Symbol: Button_Handler
+   Definitions
+      At line 216 in file ChessClock.s
+   Uses
+      At line 152 in file ChessClock.s
+Comment: Button_Handler used once
+DAbt_Handler 000000FC
+
+Symbol: DAbt_Handler
+   Definitions
+      At line 186 in file ChessClock.s
+   Uses
+      At line 48 in file ChessClock.s
+      At line 187 in file ChessClock.s
+
+FIQ_Handler 00000118
+
+Symbol: FIQ_Handler
+   Definitions
+      At line 209 in file ChessClock.s
+   Uses
+      At line 51 in file ChessClock.s
+      At line 210 in file ChessClock.s
+
+IRQ_Handler 00000100
+
+Symbol: IRQ_Handler
+   Definitions
+      At line 192 in file ChessClock.s
+   Uses
+      At line 50 in file ChessClock.s
+Comment: IRQ_Handler used once
+PAbt_Handler 000000F8
+
+Symbol: PAbt_Handler
+   Definitions
+      At line 180 in file ChessClock.s
+   Uses
+      At line 47 in file ChessClock.s
+      At line 181 in file ChessClock.s
+
+RESET 00000000
+
+Symbol: RESET
+   Definitions
+      At line 39 in file ChessClock.s
+   Uses
+      None
+Comment: RESET unused
+Reset_Handler 00000020
+
+Symbol: Reset_Handler
+   Definitions
+      At line 56 in file ChessClock.s
+   Uses
+      At line 44 in file ChessClock.s
+Comment: Reset_Handler used once
+
+
+
+ARM Macro Assembler    Page 2 Alphabetic symbol ordering
+Relocatable symbols
+
+SWI_Handler 000000F4
+
+Symbol: SWI_Handler
+   Definitions
+      At line 174 in file ChessClock.s
+   Uses
+      At line 46 in file ChessClock.s
+      At line 175 in file ChessClock.s
+
+Undef_Handler 000000F0
+
+Symbol: Undef_Handler
+   Definitions
+      At line 168 in file ChessClock.s
+   Uses
+      At line 45 in file ChessClock.s
+      At line 169 in file ChessClock.s
+
+skip 00000194
+
+Symbol: skip
+   Definitions
+      At line 254 in file ChessClock.s
+   Uses
+      At line 241 in file ChessClock.s
+Comment: skip used once
+stop 000000EC
+
+Symbol: stop
+   Definitions
+      At line 158 in file ChessClock.s
+   Uses
+      At line 158 in file ChessClock.s
+Comment: stop used once
+t2 00000168
+
+Symbol: t2
+   Definitions
+      At line 242 in file ChessClock.s
+   Uses
+      At line 232 in file ChessClock.s
+Comment: t2 used once
+12 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+TestData 00000000
+
+Symbol: TestData
+   Definitions
+      At line 271 in file ChessClock.s
+   Uses
+      None
+Comment: TestData unused
+count 00000000
+
+Symbol: count
+   Definitions
+      At line 273 in file ChessClock.s
+   Uses
+      At line 77 in file ChessClock.s
+      At line 226 in file ChessClock.s
+      At line 251 in file ChessClock.s
+
+time1 00000004
+
+Symbol: time1
+   Definitions
+      At line 274 in file ChessClock.s
+   Uses
+      At line 80 in file ChessClock.s
+      At line 237 in file ChessClock.s
+      At line 245 in file ChessClock.s
+
+time2 00000008
+
+Symbol: time2
+   Definitions
+      At line 275 in file ChessClock.s
+   Uses
+      At line 83 in file ChessClock.s
+      At line 235 in file ChessClock.s
+      At line 247 in file ChessClock.s
+
+4 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Absolute symbols
+
+EXTINT E01FC140
+
+Symbol: EXTINT
+   Definitions
+      At line 17 in file ChessClock.s
+   Uses
+      At line 107 in file ChessClock.s
+      At line 221 in file ChessClock.s
+
+EXTMODE E01FC148
+
+Symbol: EXTMODE
+   Definitions
+      At line 18 in file ChessClock.s
+   Uses
+      At line 95 in file ChessClock.s
+Comment: EXTMODE used once
+EXTPOLAR E01FC14C
+
+Symbol: EXTPOLAR
+   Definitions
+      At line 19 in file ChessClock.s
+   Uses
+      At line 101 in file ChessClock.s
+Comment: EXTPOLAR used once
+FIO2DIR1 3FFFC041
+
+Symbol: FIO2DIR1
+   Definitions
+      At line 14 in file ChessClock.s
+   Uses
+      None
+Comment: FIO2DIR1 unused
+FIO2PIN1 3FFFC055
+
+Symbol: FIO2PIN1
+   Definitions
+      At line 15 in file ChessClock.s
+   Uses
+      None
+Comment: FIO2PIN1 unused
+F_Bit 00000040
+
+Symbol: F_Bit
+   Definitions
+      At line 35 in file ChessClock.s
+   Uses
+      At line 66 in file ChessClock.s
+Comment: F_Bit used once
+I_Bit 00000080
+
+Symbol: I_Bit
+   Definitions
+      At line 34 in file ChessClock.s
+   Uses
+      At line 66 in file ChessClock.s
+Comment: I_Bit used once
+Irq_Stack_Size 00000080
+
+
+
+
+ARM Macro Assembler    Page 2 Alphabetic symbol ordering
+Absolute symbols
+
+Symbol: Irq_Stack_Size
+   Definitions
+      At line 30 in file ChessClock.s
+   Uses
+      At line 68 in file ChessClock.s
+Comment: Irq_Stack_Size used once
+Mode_IRQ 00000012
+
+Symbol: Mode_IRQ
+   Definitions
+      At line 33 in file ChessClock.s
+   Uses
+      At line 66 in file ChessClock.s
+Comment: Mode_IRQ used once
+Mode_USR 00000010
+
+Symbol: Mode_USR
+   Definitions
+      At line 32 in file ChessClock.s
+   Uses
+      At line 71 in file ChessClock.s
+Comment: Mode_USR used once
+PINSEL4 E002C010
+
+Symbol: PINSEL4
+   Definitions
+      At line 12 in file ChessClock.s
+   Uses
+      At line 88 in file ChessClock.s
+Comment: PINSEL4 used once
+T0IR E0004000
+
+Symbol: T0IR
+   Definitions
+      At line 6 in file ChessClock.s
+   Uses
+      None
+Comment: T0IR unused
+T0MCR E0004014
+
+Symbol: T0MCR
+   Definitions
+      At line 10 in file ChessClock.s
+   Uses
+      None
+Comment: T0MCR unused
+T0MR0 E0004018
+
+Symbol: T0MR0
+   Definitions
+      At line 9 in file ChessClock.s
+   Uses
+      None
+Comment: T0MR0 unused
+T0TC E0004008
+
+Symbol: T0TC
+   Definitions
+      At line 8 in file ChessClock.s
+
+
+
+ARM Macro Assembler    Page 3 Alphabetic symbol ordering
+Absolute symbols
+
+   Uses
+      At line 120 in file ChessClock.s
+      At line 233 in file ChessClock.s
+      At line 239 in file ChessClock.s
+      At line 243 in file ChessClock.s
+      At line 249 in file ChessClock.s
+
+T0TCR E0004004
+
+Symbol: T0TCR
+   Definitions
+      At line 7 in file ChessClock.s
+   Uses
+      At line 114 in file ChessClock.s
+      At line 258 in file ChessClock.s
+
+VICIntEnable FFFFF010
+
+Symbol: VICIntEnable
+   Definitions
+      At line 22 in file ChessClock.s
+   Uses
+      At line 156 in file ChessClock.s
+Comment: VICIntEnable used once
+VICIntSelect FFFFF00C
+
+Symbol: VICIntSelect
+   Definitions
+      At line 21 in file ChessClock.s
+   Uses
+      At line 134 in file ChessClock.s
+Comment: VICIntSelect used once
+VICVectAddr FFFFFF00
+
+Symbol: VICVectAddr
+   Definitions
+      At line 25 in file ChessClock.s
+   Uses
+      At line 197 in file ChessClock.s
+      At line 265 in file ChessClock.s
+
+VICVectAddr0 FFFFF100
+
+Symbol: VICVectAddr0
+   Definitions
+      At line 23 in file ChessClock.s
+   Uses
+      At line 151 in file ChessClock.s
+Comment: VICVectAddr0 used once
+VICVectEINT0 0000000E
+
+Symbol: VICVectEINT0
+   Definitions
+      At line 28 in file ChessClock.s
+   Uses
+      At line 129 in file ChessClock.s
+      At line 130 in file ChessClock.s
+
+VICVectPri0 FFFFF200
+
+
+
+ARM Macro Assembler    Page 4 Alphabetic symbol ordering
+Absolute symbols
+
+
+Symbol: VICVectPri0
+   Definitions
+      At line 24 in file ChessClock.s
+   Uses
+      At line 143 in file ChessClock.s
+Comment: VICVectPri0 used once
+VICVectT0 00000004
+
+Symbol: VICVectT0
+   Definitions
+      At line 27 in file ChessClock.s
+   Uses
+      None
+Comment: VICVectT0 unused
+23 symbols
+373 symbols in table
